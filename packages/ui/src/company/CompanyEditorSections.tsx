@@ -72,7 +72,8 @@ export function FoldersSection({ ownFolder, folders, onChange }: { ownFolder?: s
           <div className="text-ui-sm text-foreground-subtle">{t("company.editor.ownFolder")}</div>
           <div className="truncate font-mono text-ui-sm text-foreground">{ownFolder ?? t("company.editor.ownFolderAfterSave")}</div>
         </div>
-        {ownFolder ? (
+        {/* 浏览器/手机打不开系统文件管理器（用 Files 页查看）；canSelectFilePath 只在桌面端为 true。 */}
+        {ownFolder && platform.canSelectFilePath ? (
           <Button variant="ghost" size="sm" data-icon="inline-start" onClick={() => void platform.openInFileManager(ownFolder)}>
             <FolderOpen className="size-3.5" />
             {t("company.editor.openFolder")}

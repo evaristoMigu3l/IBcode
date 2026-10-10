@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CompanyFileEntry, CompanyFilePreview, CompanyState } from "@zcode/shared";
-import { ChevronRight, Download, ExternalLink, FileText, Folder, FolderOpen, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Folder, FolderOpen, Trash2 } from "lucide-react";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
@@ -97,8 +97,8 @@ export function CompanyFiles({ state, isDesktop }: { state: CompanyState; isDesk
   const previewName = preview?.path.split("/").at(-1) ?? "";
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-      <nav className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2" aria-label={t("company.tab.team")}>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card md:flex-row">
+      <nav className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border p-2 md:flex-col md:overflow-y-auto md:overflow-x-visible md:border-b-0 md:border-r md:w-48" aria-label={t("company.tab.team")}>
         {state.agents.map((a) => (
           <button
             key={a.id}
@@ -106,7 +106,7 @@ export function CompanyFiles({ state, isDesktop }: { state: CompanyState; isDesk
             onClick={() => chooseAgent(a.id)}
             aria-current={a.id === agentId}
             className={cn(
-              "flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-ui-base text-foreground hover:bg-hover",
+              "flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-ui-base text-foreground hover:bg-hover",
               a.id === agentId && "bg-selected",
             )}
           >
@@ -116,7 +116,7 @@ export function CompanyFiles({ state, isDesktop }: { state: CompanyState; isDesk
         ))}
       </nav>
 
-      <section className="flex w-80 shrink-0 flex-col border-r border-border">
+      <section className={cn("min-h-0 flex-1 flex-col md:w-80 md:flex-none md:shrink-0 md:border-r md:border-border", preview ? "hidden md:flex" : "flex")}>
         <header className="flex flex-wrap items-center gap-1 border-b border-border px-3 py-2.5 text-ui-sm">
           <button type="button" className="font-medium text-foreground hover:underline" onClick={() => { setDir(""); setPreview(null); }}>
             {agent?.name ?? "-"}
@@ -181,10 +181,13 @@ export function CompanyFiles({ state, isDesktop }: { state: CompanyState; isDesk
         </ul>
       </section>
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className={cn("min-h-0 min-w-0 flex-1 flex-col", preview ? "flex" : "hidden md:flex")}>
         {preview ? (
           <>
-            <header className="flex items-center gap-2 border-b border-border px-4 py-2">
+            <header className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 md:px-4">
+              <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label={t("company.files.back")} onClick={() => setPreview(null)}>
+                <ChevronLeft />
+              </Button>
               <span className="min-w-0 flex-1 truncate text-ui-base font-medium text-foreground">{previewName}</span>
               <span className="text-ui-xs text-foreground-subtlest">{formatSize(preview.size)}</span>
               {canOpenNatively ? (
@@ -207,7 +210,7 @@ export function CompanyFiles({ state, isDesktop }: { state: CompanyState; isDesk
                 <Trash2 />
               </Button>
             </header>
-            <div className="min-h-0 flex-1 overflow-auto p-4">
+            <div className="min-h-0 flex-1 overflow-auto p-3 md:p-4">
               {preview.truncated ? <p className="mb-2 text-ui-xs text-foreground-subtle">{t("company.files.truncated")}</p> : null}
               {preview.kind === "image" && preview.dataUrl ? (
                 <img src={preview.dataUrl} alt={previewName} className="max-h-full max-w-full object-contain" />

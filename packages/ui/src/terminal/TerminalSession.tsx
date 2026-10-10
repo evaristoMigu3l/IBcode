@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- 终端 resize 调度需要和 xterm/PTY 生命周期放在同一组件内，避免拖拽状态、fit、后端 resize 队列拆散后出现竞态。*/
+import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm } from "@xterm/xterm";
@@ -122,6 +123,7 @@ export function TerminalSession({
   workspaceKey?: string;
 }) {
   const { intl } = useZCodeIntl();
+  const showTouchKeys = isCoarseTouchDevice();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -1101,7 +1103,7 @@ export function TerminalSession({
       .catch((err) => logger.warn("[Terminal] paste via context menu failed:", err));
   };
 
-  return (
+  const terminal = (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
@@ -1120,5 +1122,49 @@ export function TerminalSession({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+  if (!showTouchKeys) return terminal;
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <div className="min-h-0 flex-1">{terminal}</div>
+      <TerminalTouchKeys
+        onKey={(data) => {
+          const id = terminalIdRef.current;
+          if (id) void services.terminalService.write({ id, data });
+        }}
+      />
+    </div>
+  );
+}
+
+// 手机软键盘没有 Esc/Tab/Ctrl/方向键：触屏上在终端下方补一排（类似 Termux 的 extra keys）。
+const TERMINAL_TOUCH_KEYS: Array<[label: string, data: string]> = [
+  ["Esc", "\x1b"],
+  ["Tab", "\t"],
+  ["^C", "\x03"],
+  ["^D", "\x04"],
+  ["^L", "\x0c"],
+  ["\u2190", "\x1b[D"],
+  ["\u2191", "\x1b[A"],
+  ["\u2193", "\x1b[B"],
+  ["\u2192", "\x1b[C"],
+];
+
+function TerminalTouchKeys({ onKey }: { onKey: (data: string) => void }) {
+  return (
+    <div className="flex shrink-0 gap-1 overflow-x-auto border-t border-border bg-background px-1.5 py-1.5">
+      {TERMINAL_TOUCH_KEYS.map(([label, data]) => (
+        <button
+          key={label}
+          type="button"
+          // pointerdown 阻止默认行为：不让按钮抢走 xterm 的焦点（否则软键盘会收起）。
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => onKey(data)}
+          className="h-9 min-w-11 shrink-0 rounded-md bg-surface px-2.5 font-mono text-ui-sm text-foreground active:bg-hover"
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

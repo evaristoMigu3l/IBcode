@@ -119,6 +119,7 @@ export function DesktopTopOverlay({
           usesCustomCaptionArea && "h-12",
           // Windows/Linux 工具组计入 4px 外沿留白和 1px 边框，较 8px 左边距右移 5px。
           usesCustomCaptionArea && "pl-3 ml-px",
+          !usesCustomCaptionArea && !isMacDesktop && "pl-1.5 pt-1",
           isMacDesktop &&
             (isMacFullscreen ? (!isSidebarVisible ? "pl-5 pt-1" : "pl-3 pt-1") : "pt-1"),
         )}
@@ -149,7 +150,8 @@ export function DesktopTopOverlay({
             </DesktopTopOverlayActionButton>
           )}
 
-          {isMacDesktop && (
+          {/* macOS 与浏览器（含手机，侧栏是抽屉）都需要这个显式的侧栏开关。 */}
+          {(isMacDesktop || !usesCustomCaptionArea) && (
             <DesktopTopOverlayActionButton
               title={toggleSidebarTitle}
               shortcut={toggleSidebarShortcutLabel}

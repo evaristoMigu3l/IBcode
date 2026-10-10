@@ -6,9 +6,9 @@
 //   pnpm --filter @zcode/web build && cd packages/server && npx tsup
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { networkInterfaces } from "node:os";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir, networkInterfaces } from "node:os";
+import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const server = resolve(root, "packages/server/dist/entry-http.js");
@@ -26,7 +26,20 @@ for (const [path, hint] of [
 const lan = process.argv.includes("--lan");
 const port = process.env.PORT || "3030";
 // Coworkers can run commands, so anything reachable from the network must require a token.
-const token = process.env.ZCODE_SERVER_AUTH_TOKEN || (lan ? randomBytes(18).toString("base64url") : "");
+// The token is kept in ~/.zcode/web-lan-token so a phone's home-screen shortcut keeps working after restarts.
+// Delete that file to sign every device out.
+const tokenFile = join(homedir(), ".zcode", "web-lan-token");
+function lanToken() {
+  if (existsSync(tokenFile)) {
+    const saved = readFileSync(tokenFile, "utf8").trim();
+    if (saved.length >= 20) return saved;
+  }
+  const fresh = randomBytes(18).toString("base64url");
+  mkdirSync(join(homedir(), ".zcode"), { recursive: true });
+  writeFileSync(tokenFile, fresh, { mode: 0o600 });
+  return fresh;
+}
+const token = process.env.ZCODE_SERVER_AUTH_TOKEN || (lan ? lanToken() : "");
 
 const child = spawn(process.execPath, [server], {
   stdio: "inherit",
@@ -46,7 +59,8 @@ if (lan) {
     .map((n) => n.address);
   console.log("\nZCode web is reachable on your network. Open on any device:");
   for (const ip of ips) console.log(`  http://${ip}:${port}/?token=${token}`);
-  console.log("Keep this link private: it gives full access to your ZCode and coworkers.\n");
+  console.log("Keep this link private: it gives full access to your ZCode and coworkers.");
+  console.log(`To sign every device out, delete ${tokenFile} and restart.\n`);
 } else {
   console.log(`\nZCode web: http://127.0.0.1:${port}  (this PC only; add --lan for your phone)\n`);
 }

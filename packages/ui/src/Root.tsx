@@ -13,6 +13,7 @@ import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { useDynamicWorkflowAvailabilityLoader } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
+import { pickDirectoryInBrowser, setDirectoryPicker } from "@/lib/directoryPickerBridge.js";
 import { useTabPersistence } from "@/hooks/useTabPersistence.js";
 import { useTokenRefresh } from "@/hooks/useTokenRefresh.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
@@ -102,7 +103,16 @@ type WelcomeScreenOpenReason =
  *
  * 外层挂载 StoreProvider（连接广播服务）+ TabStoreProvider，内层处理认证和路由。
  */
-export function Root(props: RootProps) {
+export function Root(rootProps: RootProps) {
+  // Web 端：所有 selectDirectory 调用（打开项目、Company 文件夹、插件源……）都走服务端目录浏览器。
+  const platform = useMemo(
+    () =>
+      rootProps.preferDirectoryBrowser
+        ? { ...rootProps.platform, selectDirectory: pickDirectoryInBrowser }
+        : rootProps.platform,
+    [rootProps.platform, rootProps.preferDirectoryBrowser],
+  );
+  const props = { ...rootProps, platform };
   return (
     <LucideProvider strokeWidth={DEFAULT_LUCIDE_STROKE_WIDTH}>
       {/*
@@ -232,6 +242,28 @@ function RootInner({
   const [remoteConnectionOpenPreference, setRemoteConnectionOpenPreference] =
     useState<RemoteConnectionOpenPreference | null>(null);
   const [directoryBrowserOpen, setDirectoryBrowserOpen] = useState(false);
+  const [directoryPick, setDirectoryPick] = useState<{
+    resolve: (path: string | null) => void;
+  } | null>(null);
+  const finishDirectoryPick = useCallback((path: string | null) => {
+    setDirectoryPick((pending) => {
+      pending?.resolve(path);
+      return null;
+    });
+  }, []);
+  useEffect(() => {
+    if (!preferDirectoryBrowser) return;
+    setDirectoryPicker(
+      () =>
+        new Promise<string | null>((resolve) => {
+          setDirectoryPick((pending) => {
+            pending?.resolve(null);
+            return { resolve };
+          });
+        }),
+    );
+    return () => setDirectoryPicker(null);
+  }, [preferDirectoryBrowser]);
   const [remoteConnectionInProgress, setRemoteConnectionInProgress] = useState(false);
   const [remoteConnectionRequestId, setRemoteConnectionRequestId] = useState<string | null>(null);
   const [isCreatingFallbackWorkspace, setIsCreatingFallbackWorkspace] = useState(false);
@@ -925,7 +957,19 @@ function RootInner({
       hideTriggerWhenClosed
     />
   ) : null;
-  const directoryBrowserDialog = directoryBrowserOpen ? (
+  const directoryBrowserDialog = directoryPick ? (
+    <ScopedErrorBoundary
+      scope="directory-browser"
+      resetKeys={["directory-browser-pick"]}
+      variant="silent"
+    >
+      <DirectoryBrowser
+        services={services}
+        onCancel={() => finishDirectoryPick(null)}
+        onSelect={(path) => finishDirectoryPick(path)}
+      />
+    </ScopedErrorBoundary>
+  ) : directoryBrowserOpen ? (
     <ScopedErrorBoundary
       scope="directory-browser"
       resetKeys={["directory-browser"]}

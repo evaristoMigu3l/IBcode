@@ -759,6 +759,13 @@ export function useComposerAttachments(
       if (!shouldCreateClipboardTextAttachment(text)) return;
       event.preventDefault();
       event.stopPropagation?.();
+      // Web/手机没有本地临时文件：长文本直接作为文件字节上传（与选择文件同一条链路）。
+      if (!platform.canSelectFilePath) {
+        addAttachmentFiles([
+          new File([text], createClipboardTextAttachmentFilenameForDate(), { type: "text/plain" }),
+        ]);
+        return;
+      }
       void (async () => {
         try {
           const attachment = await platform.createTempTextAttachment?.({

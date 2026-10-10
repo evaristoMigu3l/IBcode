@@ -126,6 +126,12 @@ is also open, both share the same coworkers and messages, and a routine fires on
 expose port 3030 to the internet: coworkers can run commands. For access away from home, use a
 VPN like Tailscale with `--lan`, or the desktop app's built-in mobile remote control.
 
+**Phones:** the whole app adapts to phone screens. The sidebar becomes a drawer, side panes open
+full-screen, there's a folder browser instead of the native picker, the terminal gets an extra key
+row, and "Add to Home screen" works. Setup and details: `WEB_VERSION_NOTE.md`. Code:
+`ui/src/hooks/usePhoneLayout.ts`, `ui/src/lib/directoryPickerBridge.ts` (+ `ui/test/directoryPicker.test.ts`),
+the `data-phone-shell` rules at the end of `ui/src/styles.css`, `WorkspaceShellLayout.tsx`.
+
 Files: `packages/services/src/company/*` (service, gateway, policy, tools, runner, store),
 `packages/shared/src/company.ts`, `packages/ui/src/company/*`, `packages/ui/src/hooks/useCompany.ts`,
 the sidebar/layout wiring, locale strings, `.cmp-*` animations in `packages/ui/src/styles.css`.

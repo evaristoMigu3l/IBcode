@@ -2159,3 +2159,47 @@ body {
   object-fit: cover;
   border-radius: inherit;
 }
+
+/* ---- 手机 / 触屏 ---- */
+/* 触屏没有 hover：只在悬停时才显示的行内按钮（复制、关闭 tab、删除……）直接显示。 */
+@media (hover: none) {
+  [class*="opacity-0"][class*="group-hover"][class*=":opacity-100"] {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+  }
+}
+
+/* 手机布局（<768px）：侧栏抽屉在 WorkspaceShellLayout 里处理；右侧面板（预览/Git/终端/浏览器）全屏覆盖对话。 */
+@media (max-width: 767px) {
+  [data-phone-shell] [data-workspace-side-pane-resize-handle] {
+    display: none !important;
+  }
+  [data-phone-shell][data-side-pane-visible] [data-panel][id="browser"] {
+    position: absolute !important;
+    inset: 0;
+    z-index: 30;
+    width: 100% !important;
+    max-width: none !important;
+    flex: none !important;
+  }
+  /* iOS 聚焦小于 16px 的输入框会自动放大页面。 */
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: max(16px, 1em);
+  }
+  /* 固定像素宽的控件（w-[260px] 之类）不超出屏幕；放在 base 层，任何 max-w-* 工具类仍然优先。 */
+  @layer base {
+    [class^="w-["],
+    [class*=" w-["] {
+      max-width: 100%;
+    }
+  }
+  /* 刘海屏/手势条安全区。 */
+  #root {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+}

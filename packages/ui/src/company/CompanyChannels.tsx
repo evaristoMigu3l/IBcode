@@ -99,8 +99,8 @@ export function CompanyChannels({ state, onRefresh, onOpenRun }: Props) {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-      <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2" aria-label={intl.formatMessage({ id: "company.tab.channels" })}>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card md:flex-row">
+      <nav className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border p-2 md:flex-col md:overflow-y-auto md:overflow-x-visible md:border-b-0 md:border-r md:w-56" aria-label={intl.formatMessage({ id: "company.tab.channels" })}>
         {state.channels.map((c) => {
           const agent = state.agents.find((a) => companyDmChannel(a.id) === c);
           const run = agent ? activeRunFor(state.runs, agent.id) : undefined;
@@ -111,7 +111,7 @@ export function CompanyChannels({ state, onRefresh, onOpenRun }: Props) {
               onClick={() => setChannel(c)}
               aria-current={c === channel}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-ui-base text-foreground hover:bg-hover",
+                "flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-ui-base text-foreground hover:bg-hover",
                 c === channel && "bg-selected",
               )}
             >
@@ -127,7 +127,7 @@ export function CompanyChannels({ state, onRefresh, onOpenRun }: Props) {
         })}
       </nav>
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
           {dmAgent ? (
             <CompanyAvatar icon={dmAgent.icon} color={dmAgent.color} size={24} active={Boolean(activeRunFor(state.runs, dmAgent.id))} />

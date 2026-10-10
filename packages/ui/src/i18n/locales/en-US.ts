@@ -6974,6 +6974,7 @@ const enUS: Record<string, string> = {
   "company.tab.files": "Files",
   "company.files.empty": "No files here yet.",
   "company.files.pick": "Pick a file to preview it. Reports, notes, code and images open right here.",
+  "company.files.back": "Back to files",
   "company.files.noPreview": "This kind of file can't be previewed here. Open it with its app.",
   "company.files.open": "Open",
   "company.files.showInFolder": "Show in folder",

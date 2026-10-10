@@ -169,6 +169,8 @@ import type { ConversationPromptTelemetrySeed } from "@/v4/telemetry/conversatio
 import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 import { buildV4ConversationPromptTelemetryExtraDetail } from "@/v4/telemetry/conversationPromptTelemetry.js";
 import { resolveAttachableShareContext } from "@/lib/conversationShareContext.js";
+import { usePhoneLayout } from "@/hooks/usePhoneLayout.js";
+import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
 
 const MODEL_SELECTION_LOADING_STATE: ModelSelectionState = { status: "loading" };
 
@@ -605,7 +607,9 @@ function ConversationComposerImpl({
   const reportedErrorKeysRef = useRef(new Set<string>());
   const primaryModifierPressed = usePrimaryFollowupModifier();
   const appleKeyboardPlatform = isAppleKeyboardPlatform();
-  const enterSubmits = true;
+  // 手机软键盘的回车是换行（用发送按钮发送）；桌面仍是 Enter 发送。
+  const isPhone = usePhoneLayout();
+  const enterSubmits = !(isPhone && isCoarseTouchDevice());
   const sendShortcut = resolveChatEnterShortcut({ enterSubmits });
   const updateText = useCallback(
     (next: string) => {
@@ -824,12 +828,12 @@ function ConversationComposerImpl({
   const focusOptsRef = useRef<ComposerAutoFocusOptions>({
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isMobileViewport: isPhone,
   });
   focusOptsRef.current = {
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isMobileViewport: isPhone,
   };
   const flushPendingFocus = useCallback(() => {
     if (!pendingFocusRef.current) return;

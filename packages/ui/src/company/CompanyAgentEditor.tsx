@@ -157,14 +157,14 @@ export function CompanyAgentEditor({ state, agentId, onDone, onSaved }: Props) {
           placeholder={t("company.editor.instructionsPlaceholder")}
           aria-label={t("company.editor.instructions")}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-ui-sm text-foreground-subtle">{t("company.editor.model")}</span>
           <SelectField
             label={t("company.editor.model")}
             value={modelKey(form.model)}
             onChange={(v) => patch({ model: models.find((m) => m.value === v)?.selection })}
             options={[{ value: DEFAULT_MODEL, label: t("company.editor.modelDefault") }, ...models.map(({ value, label }) => ({ value, label }))]}
-            className="min-w-64"
+            className="w-full sm:w-auto sm:min-w-64"
           />
         </div>
       </Section>
@@ -184,7 +184,7 @@ export function CompanyAgentEditor({ state, agentId, onDone, onSaved }: Props) {
             <Switch checked={form[key]} onCheckedChange={(v) => patch({ [key]: v })} />
           </label>
         ))}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <span>
             <span className="block text-ui-base text-foreground">{t("company.editor.shell")}</span>
             <span className="block text-ui-sm text-foreground-subtle">{t("company.editor.shellHint")}</span>
@@ -194,7 +194,7 @@ export function CompanyAgentEditor({ state, agentId, onDone, onSaved }: Props) {
             value={form.shell}
             onChange={(shell) => patch({ shell: shell as CompanyAgentInput["shell"] })}
             options={(["off", "ask", "auto"] as const).map((v) => ({ value: v, label: t(`company.editor.shell.${v}`) }))}
-            className="w-44 shrink-0"
+            className="w-full shrink-0 sm:w-44"
           />
         </div>
         <label className="flex items-center justify-between gap-4">

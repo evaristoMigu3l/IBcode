@@ -6652,6 +6652,7 @@ const zhCN: Record<string, string> = {
   "company.tab.files": "文件",
   "company.files.empty": "这里还没有文件。",
   "company.files.pick": "选择一个文件进行预览。报告、笔记、代码和图片可直接在这里查看。",
+  "company.files.back": "返回文件列表",
   "company.files.noPreview": "此类文件无法在这里预览，请用对应程序打开。",
   "company.files.open": "打开",
   "company.files.showInFolder": "在文件夹中显示",

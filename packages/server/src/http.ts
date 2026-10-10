@@ -203,6 +203,7 @@ const staticMimeTypes: Record<string, string> = {
   ".webp": "image/webp",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
+  ".webmanifest": "application/manifest+json",
 };
 
 function parseCookieHeader(header: string | undefined): Map<string, string> {
@@ -229,7 +230,8 @@ function hasValidLiteToken(c: Context, token: string): boolean {
   if (url.searchParams.get("token") === token) {
     c.header(
       "Set-Cookie",
-      `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
+      // 持久 cookie：手机「添加到主屏幕」的 app 冷启动时不带 ?token=，仍能保持登录。
+      `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`,
     );
     return true;
   }

@@ -93,6 +93,7 @@ import {
   isWorkspaceFilePathInside,
 } from "@/workspace-file-tree/model.js";
 import type { WorkspaceShellLayoutProps } from "@/app-shell/types.js";
+import { usePhoneLayout } from "@/hooks/usePhoneLayout.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
@@ -404,6 +405,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     );
   }, [openWorkspaceKeys]);
   const isSidebarPanelVisible = isSidebarVisible;
+  // 手机：侧栏是覆盖在对话上的抽屉；切换任务/页面后自动收起，侧边面板全屏（见 styles.css）。
+  const isPhone = usePhoneLayout();
+  const phoneDrawerCloseRef = useRef({ isPhone, isSidebarVisible, handleToggleSidebar });
+  phoneDrawerCloseRef.current = { isPhone, isSidebarVisible, handleToggleSidebar };
   const {
     panelRef: terminalPanelRef,
     panelElementRef: terminalPanelElementRef,
@@ -426,6 +431,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     rememberExpandedSize: true,
     resizeOnInitialVisibleMount: false,
   });
+  useEffect(() => {
+    const latest = phoneDrawerCloseRef.current;
+    if (latest.isPhone && latest.isSidebarVisible) latest.handleToggleSidebar();
+  }, [activeTaskId, workspaceMainView, isSidePaneVisible]);
   const workspaceSessionActionDisabled =
     Boolean(workspaceReadOnlyReason) || reloadSessionDisabled || reloadSessionPending;
   // 文件树打开时任务列表整屏滑出，侧栏里的 New Task 入口也随之不可见。
@@ -1522,6 +1531,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       <div
         ref={workspaceShellRef}
         data-workspace-shell="true"
+        data-phone-shell={isPhone ? "true" : undefined}
+        data-side-pane-visible={isSidePaneVisible ? "true" : undefined}
         style={workspaceShellSplitStyle}
         className={cn(
           "relative flex h-full min-h-0 w-full overflow-hidden",
@@ -1536,7 +1547,12 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           data-workspace-sidebar-panel="true"
           id="sidebar"
           className={cn(
-            "w-[var(--workspace-sidebar-panel-width)] max-w-[50%] flex-none overflow-hidden duration-200 ease-out transition-[width,opacity] data-[workspace-sidebar-resizing=true]:transition-opacity",
+            isPhone
+              ? cn(
+                  "absolute inset-y-0 left-0 z-40 w-[min(86vw,320px)] overflow-hidden bg-background shadow-2xl transition-[transform,opacity] duration-200 ease-out",
+                  isSidebarPanelVisible ? "translate-x-0" : "-translate-x-full",
+                )
+              : "w-[var(--workspace-sidebar-panel-width)] max-w-[50%] flex-none overflow-hidden duration-200 ease-out transition-[width,opacity] data-[workspace-sidebar-resizing=true]:transition-opacity",
             // 拖动侧栏宽度时如果继续过渡 width，会让指针移动和实际宽度之间产生滞后。
             // 拖拽 active 通过 DOM 标记切 transition，避免 pointerdown/up 为了切 class 重渲染整棵 workspace。
             isSidebarPanelVisible ? "opacity-100" : "pointer-events-none opacity-0",
@@ -1613,7 +1629,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           </aside>
         </div>
 
-        {isSidebarVisible ? (
+        {isPhone && isSidebarVisible ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-30 bg-black/45 backdrop-blur-[1px]"
+            onClick={handleToggleSidebar}
+          />
+        ) : null}
+        {isSidebarVisible && !isPhone ? (
           <div
             role="separator"
             tabIndex={0}
@@ -1641,7 +1664,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           data-panel=""
           id="content"
           className={cn(
-            "flex min-w-[320px] flex-1 flex-col",
+            "flex flex-1 flex-col",
+            isPhone ? "min-w-0" : "min-w-[320px]",
             hasDesktopPanelInset ? "p-1 pl-0 pt-0" : "p-0",
           )}
         >
@@ -1748,7 +1772,13 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         />
                       </ScopedErrorBoundary>
                     ) : null}
-                    <div className="min-h-0 flex-1 overflow-hidden">
+                    <div
+                      className={cn(
+                        "min-h-0 flex-1 overflow-hidden",
+                        // 浏览器里这些页面没有 header：侧栏收起时给左上角浮动按钮（侧栏/新任务）让出一行。
+                        !isDesktop && !isSidebarVisible && workspaceMainView !== "chat" && "pt-11",
+                      )}
+                    >
                       {workspaceMainView === "automations" ? (
                         <main
                           id={AUTOMATIONS_TOAST_ANCHOR_ID}
