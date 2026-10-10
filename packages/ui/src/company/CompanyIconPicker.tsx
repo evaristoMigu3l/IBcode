@@ -9,6 +9,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { CompanyAvatar, CompanyIconLibraryContext } from "./CompanyAvatar.js";
 import { Section } from "./CompanyEditorSections.js";
 import { sanitizeCompanySvg, serializeCompanySvg } from "./companySvg.js";
+import { fileToBase64, ICON_FILE_ACCEPT, MAX_MEDIA_ICON_BYTES, mediaIconMime } from "./companyMediaIcon.js";
 
 const MAX_ICON_BYTES = 256 * 1024;
 
@@ -30,15 +31,21 @@ export function CompanyIconPicker({ icon, color, onChange }: Props) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > MAX_ICON_BYTES) return void toast(t("company.editor.iconTooBig"));
-    // 先在本地清洗：存进图标库的就是干净的 SVG（渲染时还会再清洗一次）。
-    const clean = sanitizeCompanySvg(await file.text());
-    if (!clean) return void toast(t("company.editor.iconInvalid"));
+    const name = file.name.replace(/\.[^.]+$/, "");
+    const mime = mediaIconMime(file);
     try {
-      const added = await companyService.addIcon({
-        name: file.name.replace(/\.svg$/i, ""),
-        svg: serializeCompanySvg(clean),
-      });
+      let added;
+      if (mime) {
+        // 动图（MP4 等）：原样保存与显示。
+        if (file.size > MAX_MEDIA_ICON_BYTES) return void toast(t("company.editor.mediaTooBig"));
+        added = await companyService.addMediaIcon({ name, mime, base64: await fileToBase64(file) });
+      } else {
+        if (file.size > MAX_ICON_BYTES) return void toast(t("company.editor.iconTooBig"));
+        // 先在本地清洗：存进图标库的就是干净的 SVG（渲染时还会再清洗一次）。
+        const clean = sanitizeCompanySvg(await file.text());
+        if (!clean) return void toast(t("company.editor.iconInvalid"));
+        added = await companyService.addIcon({ name, svg: serializeCompanySvg(clean) });
+      }
       await library.reload();
       onChange({ icon: added.id as CompanyAgentIcon });
       toast(t("company.editor.iconAdded"));
@@ -102,7 +109,7 @@ export function CompanyIconPicker({ icon, color, onChange }: Props) {
         </>
       ) : null}
       <div>
-        <input ref={fileInput} type="file" accept=".svg,image/svg+xml" className="hidden" onChange={(e) => void upload(e)} />
+        <input ref={fileInput} type="file" accept={ICON_FILE_ACCEPT} className="hidden" onChange={(e) => void upload(e)} />
         <Button variant="outline" size="sm" data-icon="inline-start" onClick={() => fileInput.current?.click()}>
           <Upload className="size-3.5" />
           {t("company.editor.uploadIcon")}

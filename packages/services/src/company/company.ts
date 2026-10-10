@@ -4,6 +4,8 @@ import type {
   CompanyAuditEntry,
   CompanyCapabilities,
   CompanyCustomIcon,
+  CompanyFileEntry,
+  CompanyFilePreview,
   CompanyMessage,
   CompanyState,
 } from "@zcode/shared";
@@ -29,10 +31,18 @@ export interface ICompanyService {
   readMemory(params: { id: string }): Promise<string>;
   writeMemory(params: { id: string; text: string }): Promise<void>;
   listAudit(params: { limit?: number; agentId?: string }): Promise<CompanyAuditEntry[]>;
+  /** 清空动态：已结束的运行记录与动作日志（可只清某位同事）；进行中的运行保留。 */
+  clearActivity(params: { agentId?: string }): Promise<void>;
   runRoutineNow(params: { agentId: string; routineId: string }): Promise<void>;
+  /** 浏览同事自己的文件夹（报告、演示文稿、代码等成果）；路径相对于该文件夹。 */
+  listFiles(params: { agentId: string; path?: string }): Promise<CompanyFileEntry[]>;
+  previewFile(params: { agentId: string; path: string }): Promise<CompanyFilePreview>;
+  deleteFile(params: { agentId: string; path: string }): Promise<void>;
   /** 图标库：用户上传的 SVG（UI 渲染前会在隔离的 shadow DOM 里再清洗一次）。 */
   listIcons(): Promise<CompanyCustomIcon[]>;
   addIcon(params: { name: string; svg: string }): Promise<CompanyCustomIcon>;
+  /** 动图图标（MP4/WebM/GIF/WebP/PNG，≤4 MB），原样显示。 */
+  addMediaIcon(params: { name: string; mime: string; base64: string }): Promise<CompanyCustomIcon>;
   deleteIcon(params: { id: string }): Promise<void>;
 }
 

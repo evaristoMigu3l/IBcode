@@ -16,7 +16,8 @@ import {
   searchFiles,
   writeTextFile,
 } from "./companyFiles.js";
-import { CompanyRefusal, type CompanyRoot } from "./companyPolicy.js";
+import { sendFileToCoworker } from "./companyFileBrowser.js";
+import { CompanyRefusal, resolveCompanyPath, type CompanyRoot } from "./companyPolicy.js";
 import { assertChannel, type CompanyStore } from "./companyStore.js";
 
 export const COMPANY_MCP_SERVER_NAME = "company";
@@ -257,6 +258,24 @@ const FILE_TOOLS: CompanyTool[] = [
     readOnly: true,
     target: (a) => `${String(a.query)} in ${pathArg(a)}`,
     run: (a, ctx) => searchFiles(ctx.roots, a.query, a.path),
+  },
+  {
+    name: "files_send",
+    description:
+      "Give a coworker a copy of one of your files. Coworkers can't read your folder, so this is how you hand over reports, drafts and data. It lands in their folder at inbox/<your id>/; then mention them with that path.",
+    inputSchema: schema({ path: str("Your file to send."), to: str("Coworker id.") }, ["path", "to"]),
+    target: (a) => `${pathArg(a)} -> ${String(a.to)}`,
+    run: async (a, ctx) => {
+      const target = ctx.roster.find((x) => x.id === String(a.to));
+      if (!target) throw new CompanyRefusal(`No coworker "${String(a.to)}". Call team_roster.`);
+      if (target.id === ctx.agent.id) throw new CompanyRefusal("That's you; the file is already in your folder.");
+      const delivered = await sendFileToCoworker({
+        source: await resolveCompanyPath(a.path, ctx.roots, "read"),
+        recipientFolder: ctx.store.workspaceOf(target.id),
+        senderId: ctx.agent.id,
+      });
+      return `Sent. ${target.name} has it at ${delivered} in their folder. Mention @${target.id} with that path.`;
+    },
   },
 ];
 

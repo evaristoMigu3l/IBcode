@@ -66,14 +66,43 @@ export function useCompanyMessages(channel: string) {
 }
 
 /** 图标库（自定义 SVG）。只在 Company 页面打开时加载；上传/删除后调用 reload。 */
+export type CompanyIconWithSrc = CompanyCustomIcon & { src?: string };
+
 export function useCompanyIcons() {
   const { companyService } = useServices();
-  const [icons, setIcons] = useState<CompanyCustomIcon[]>([]);
+  const [icons, setIcons] = useState<CompanyIconWithSrc[]>([]);
+  // 动图图标转成 blob URL：多个头像共享同一份数据，而不是每个元素都带一份几 MB 的 data URL。
+  const blobUrls = useRef(new Map<string, string>());
   const reload = useCallback(async () => {
-    setIcons(await companyService.listIcons().catch(() => []));
+    const list = await companyService.listIcons().catch(() => []);
+    const next = await Promise.all(
+      list.map(async (icon): Promise<CompanyIconWithSrc> => {
+        if (!icon.dataUrl) return icon;
+        let src = blobUrls.current.get(icon.id);
+        if (!src) {
+          src = URL.createObjectURL(await (await fetch(icon.dataUrl)).blob());
+          blobUrls.current.set(icon.id, src);
+        }
+        return { ...icon, dataUrl: undefined, src };
+      }),
+    );
+    for (const [id, url] of blobUrls.current) {
+      if (!next.some((i) => i.id === id)) {
+        URL.revokeObjectURL(url);
+        blobUrls.current.delete(id);
+      }
+    }
+    setIcons(next);
   }, [companyService]);
   useEffect(() => {
     void reload();
   }, [reload]);
+  useEffect(() => {
+    const urls = blobUrls.current;
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, []);
   return { icons, reload };
 }

@@ -65,11 +65,17 @@ except scheduled routines.
   routines (every hour, every 4 hours, daily, weekdays, weekly or cron; at least 15 min apart,
   20 max) and memory (MEMORY.md).
 - **Activity**: every run, and every file/shell action each coworker attempted, allowed or refused.
-- **Your own icons**: in Team → coworker → Icon, **Upload SVG** (up to 256 KB) adds it to your
-  icon library (`~/.zcode/company/icons/`), reusable by any coworker. CSS/SMIL animations and
-  `:hover` effects work. Each icon renders in its own shadow root, so its CSS can't affect the
-  app. Scripts, `on*` handlers, `<foreignObject>`, `<image>`, `<a>`, links outside the file and
-  external `url()` are stripped, both at upload and again at render.
+- **Your own icons**: in Team → coworker → Icon, **Upload icon** adds it to your icon library
+  (`~/.zcode/company/icons/`), reusable by any coworker.
+  - **SVG** (up to 256 KB): CSS/SMIL animations and `:hover` effects work. Each icon renders in
+    its own shadow root, so its CSS can't affect the app. Scripts, `on*` handlers,
+    `<foreignObject>`, `<image>`, `<a>`, links outside the file and external `url()` are
+    stripped, both at upload and again at render.
+  - **Animated MP4 / WebM / GIF / WebP / PNG** (up to 4 MB), e.g. icon-pack animations exported
+    as video. They play muted and looped and look exactly like the file (original
+    background and colors), cropped to the rounded tile. Message rows
+    show a still first frame, so long channels don't play dozens of videos. The real format is
+    checked from the file's bytes.
 - **Coworkers wake each other**: a post that *starts* with `@coworker` starts them (mentions
   mid-sentence don't). Without "hand work to coworkers" a coworker can only answer whoever asked
   it. Once an answer has woken the asker, the asker can't @ the answerer back just to
@@ -96,6 +102,16 @@ except scheduled routines.
 
 - **Clear a channel**: the **Clear** button in any channel's header deletes all its messages
   (after a confirmation). Coworkers' files, memory and run history are kept.
+- **Files tab**: pick a coworker and browse its folder. Reports, markdown, code and images preview
+  in place; **Open** uses the file's default program on desktop (Download in the browser);
+  **Show in folder**; **Delete** after a confirmation. `.home` and `.tmp` are hidden.
+- **Handing files to each other**: coworkers can't read each other's folders, so a `files_send`
+  tool copies a file into the recipient's `inbox/<sender>/` (duplicate names get "(2)",
+  max 50 MB, audited). The prompt tells them to hand over deliverables this way and to save
+  finished work as files.
+- **Clear activity**: the **Clear** button on the Activity tab deletes finished runs and the
+  action log, for everyone or just the coworker selected in the filter. Runs in progress stay.
+  Daily run limits are counted separately (`usage.json`), so clearing doesn't reset them.
 
 ## 4. Web version
 ZCode also runs in a browser: the same UI and the same data (`~/.zcode`), Company included.

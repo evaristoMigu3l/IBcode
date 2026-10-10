@@ -1,11 +1,9 @@
-import { createHash } from "node:crypto";
 import { appendFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
   CompanyAgent,
   CompanyAuditEntry,
-  CompanyCustomIcon,
   CompanyMessage,
   CompanyRun,
 } from "@zcode/shared";
@@ -59,6 +57,7 @@ function parseJsonLines<T>(text: string): T[] {
 export class CompanyStore {
   /** runs.json 是读改写；同一 host 内串行化，避免并发唤醒互相覆盖。 */
   private runsChain: Promise<unknown> = Promise.resolve();
+  private usageChain: Promise<unknown> = Promise.resolve();
 
   constructor(readonly home: string = companyHome()) {}
 
@@ -179,6 +178,58 @@ export class CompanyStore {
     await appendFile(path, `${JSON.stringify(entry)}\n`, "utf8");
   }
 
+  /** 清空动作记录：不指定同事时删掉整个日志（含轮转文件），否则只去掉该同事的条目。 */
+  async clearAudit(agentId?: string): Promise<void> {
+    const path = join(this.home, "audit.jsonl");
+    for (const file of [path, `${path}.1`]) {
+      if (!agentId) {
+        await rm(file, { force: true });
+        continue;
+      }
+      let text = "";
+      try {
+        text = await readFile(file, "utf8");
+      } catch {
+        continue;
+      }
+      const kept = parseJsonLines<CompanyAuditEntry>(text).filter((e) => e.agentId !== agentId);
+      const tmp = `${file}.${process.pid}.tmp`;
+      await writeFile(tmp, kept.map((e) => `${JSON.stringify(e)}\n`).join(""), "utf8");
+      await rename(tmp, file);
+    }
+  }
+
+  // ---------- daily autonomy counter ----------
+  // 独立于 runs.json 计数：清空动作/运行记录不会重置每日上限，也不受 runs.json 只留 200 条的限制。
+
+  /**
+   * 原子地「检查并占用」今天的一次自主运行额度。
+   * notify：本次超限且今天还没提示过（每位同事每天只提示一次）。
+   */
+  claimDailyRun(agentId: string, limit: number): Promise<{ ok: boolean; notify: boolean }> {
+    const next = this.usageChain.then(async () => {
+      await this.ensureLayout();
+      const now = new Date();
+      const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+      const path = join(this.home, "usage.json");
+      const stored = await readJson<{ day?: string; runs?: Record<string, number>; notified?: string[] }>(path, {});
+      const usage = stored.day === day ? { day, runs: stored.runs ?? {}, notified: stored.notified ?? [] } : { day, runs: {}, notified: [] as string[] };
+      const used = usage.runs[agentId] ?? 0;
+      let result: { ok: boolean; notify: boolean };
+      if (used < limit) {
+        usage.runs[agentId] = used + 1;
+        result = { ok: true, notify: false };
+      } else {
+        result = { ok: false, notify: !usage.notified.includes(agentId) };
+        if (result.notify) usage.notified.push(agentId);
+      }
+      await writeJsonAtomic(path, usage);
+      return result;
+    });
+    this.usageChain = next.catch(() => undefined);
+    return next;
+  }
+
   async readAudit(limit = 200, agentId?: string): Promise<CompanyAuditEntry[]> {
     let text = "";
     try {
@@ -205,55 +256,6 @@ export class CompanyStore {
   async writeMemory(id: string, text: string): Promise<void> {
     await mkdir(this.workspaceOf(id), { recursive: true });
     await writeFile(join(this.workspaceOf(id), MEMORY_FILE), text, "utf8");
-  }
-
-  // ---------- icon library ----------
-  // 按内容寻址：同一个 SVG 只存一份；index.json 记名字与上传时间。
-
-  private iconIndexPath(): string {
-    return join(this.home, "icons", "index.json");
-  }
-
-  async listIcons(): Promise<CompanyCustomIcon[]> {
-    const index = await readJson<Record<string, { name: string; createdAt: number }>>(this.iconIndexPath(), {});
-    const icons = await Promise.all(
-      Object.entries(index)
-        .sort(([, a], [, b]) => a.createdAt - b.createdAt)
-        .map(async ([hex, meta]) => {
-          try {
-            const svg = await readFile(join(this.home, "icons", `${hex}.svg`), "utf8");
-            return { id: `custom:${hex}`, name: meta.name, svg };
-          } catch {
-            return null;
-          }
-        }),
-    );
-    return icons.filter((i): i is CompanyCustomIcon => i !== null);
-  }
-
-  async addIcon(name: string, svg: string): Promise<CompanyCustomIcon> {
-    const hex = createHash("sha256").update(svg).digest("hex").slice(0, 16);
-    await mkdir(join(this.home, "icons"), { recursive: true });
-    await writeFile(join(this.home, "icons", `${hex}.svg`), svg, "utf8");
-    const index = await readJson<Record<string, { name: string; createdAt: number }>>(this.iconIndexPath(), {});
-    index[hex] = { name, createdAt: index[hex]?.createdAt ?? Date.now() };
-    await writeJsonAtomic(this.iconIndexPath(), index);
-    return { id: `custom:${hex}`, name, svg };
-  }
-
-  async hasIcon(id: string): Promise<boolean> {
-    const hex = id.replace(/^custom:/, "");
-    const index = await readJson<Record<string, unknown>>(this.iconIndexPath(), {});
-    return /^[a-f0-9]{16}$/.test(hex) && hex in index;
-  }
-
-  async removeIcon(id: string): Promise<void> {
-    const hex = id.replace(/^custom:/, "");
-    if (!/^[a-f0-9]{16}$/.test(hex)) throw new Error("Invalid icon id.");
-    const index = await readJson<Record<string, unknown>>(this.iconIndexPath(), {});
-    delete index[hex];
-    await writeJsonAtomic(this.iconIndexPath(), index);
-    await rm(join(this.home, "icons", `${hex}.svg`), { force: true });
   }
 
   // ---------- inbox cursors ----------

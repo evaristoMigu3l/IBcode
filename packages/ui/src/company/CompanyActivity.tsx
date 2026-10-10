@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CompanyAuditEntry, CompanyRun, CompanyState } from "@zcode/shared";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { toast } from "@/components/ui/toast.js";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { cn } from "@/components/lib/utils.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -27,24 +30,57 @@ const DECISION_STYLE: Record<CompanyAuditEntry["decision"], string> = {
   failed: "bg-destructive/15 text-destructive",
 };
 
-export function CompanyActivity({ state, onOpenRun }: { state: CompanyState; onOpenRun(run: CompanyRun): void }) {
+export function CompanyActivity({
+  state,
+  onOpenRun,
+  onRefresh,
+}: {
+  state: CompanyState;
+  onOpenRun(run: CompanyRun): void;
+  onRefresh(): void;
+}) {
   const { intl } = useZCodeIntl();
   const t = (id: string) => intl.formatMessage({ id });
   const { companyService } = useServices();
   const [agentId, setAgentId] = useState(ALL);
   const [audit, setAudit] = useState<CompanyAuditEntry[]>([]);
+  const confirm = useConfirmDialog();
   const agents = new Map(state.agents.map((a) => [a.id, a]));
 
-  useEffect(() => {
-    const load = () =>
-      void companyService
+  const load = useCallback(
+    () =>
+      companyService
         .listAudit({ limit: 300, ...(agentId === ALL ? {} : { agentId }) })
         .then(setAudit)
-        .catch(() => undefined);
-    load();
-    const timer = setInterval(load, 4000);
+        .catch(() => undefined),
+    [agentId, companyService],
+  );
+
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => void load(), 4000);
     return () => clearInterval(timer);
-  }, [agentId, companyService]);
+  }, [load]);
+
+  // 清空当前视图（全部或某位同事）的已结束运行与动作日志；进行中的运行保留。
+  const clear = async () => {
+    const who = agentId === ALL ? t("company.activity.allAgents") : (agents.get(agentId)?.name ?? agentId);
+    const ok = await confirm({
+      title: intl.formatMessage({ id: "company.activity.clearTitle" }, { who }),
+      description: t("company.activity.clearDescription"),
+      confirmVariant: "destructive",
+      confirmLabel: t("company.activity.clear"),
+    });
+    if (!ok) return;
+    try {
+      await companyService.clearActivity(agentId === ALL ? {} : { agentId });
+      await load();
+      onRefresh();
+      toast(t("company.activity.cleared"));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const runs = state.runs.filter((r) => agentId === ALL || r.agentId === agentId);
   const who = (id: string) => {
@@ -69,6 +105,17 @@ export function CompanyActivity({ state, onOpenRun }: { state: CompanyState; onO
           options={[{ value: ALL, label: t("company.activity.allAgents") }, ...state.agents.map((a) => ({ value: a.id, label: a.name }))]}
           className="w-56"
         />
+        <Button
+          variant="ghost"
+          size="sm"
+          data-icon="inline-start"
+          className="ml-auto text-foreground-subtle"
+          disabled={runs.every((r) => r.status === "running" || r.status === "needs-you") && audit.length === 0}
+          onClick={() => void clear()}
+        >
+          <Trash2 className="size-3.5" />
+          {t("company.activity.clear")}
+        </Button>
       </div>
 
       <Section title={t("company.activity.runs")}>

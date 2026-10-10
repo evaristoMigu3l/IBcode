@@ -15,11 +15,14 @@ import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import type { ICompanyService } from "./company.js";
 import { normalizeAgent, starterAgents } from "./companyAgents.js";
 import { ensureCompanyPermissions, listMcpServerNames, listSkillNames } from "./companyConfig.js";
+import { deleteAgentFile, listAgentFiles, previewAgentFile } from "./companyFileBrowser.js";
 import { CompanyGateway } from "./companyGateway.js";
+import { CompanyIconLibrary } from "./companyIconLibrary.js";
 import { CompanyRunner, type CompanyRunnerDeps } from "./companyRunner.js";
 import { assertChannel, assertCompanyId, CompanyStore } from "./companyStore.js";
 
 const MAX_ICON_BYTES = 256 * 1024;
+const MAX_MEDIA_ICON_BYTES = 4 * 1024 * 1024;
 
 export interface CreateCompanyServiceOptions {
   getTaskService(): IZCodeTaskService | undefined;
@@ -35,6 +38,7 @@ export function createCompanyService(options: CreateCompanyServiceOptions): ICom
   const logger = createServiceLogger("company");
   const log = (message: string, error?: unknown) => logger.warn(undefined, message, error);
   const store = options.store ?? new CompanyStore();
+  const icons = new CompanyIconLibrary(store.home);
   let runner: CompanyRunner;
   const gateway = new CompanyGateway({
     store,
@@ -145,7 +149,7 @@ export function createCompanyService(options: CreateCompanyServiceOptions): ICom
       const existing = input.id ? all.find((a) => a.id === input.id) : undefined;
       if (input.id && !existing) throw new Error(`No coworker "${input.id}".`);
       const agent = normalizeAgent(input, existing, all);
-      if (agent.icon.startsWith("custom:") && !(await store.hasIcon(agent.icon))) {
+      if (agent.icon.startsWith("custom:") && !(await icons.has(agent.icon))) {
         throw new Error("That icon is no longer in your icon library.");
       }
       await store.writeAgent(agent);
@@ -172,6 +176,16 @@ export function createCompanyService(options: CreateCompanyServiceOptions): ICom
       return store.readAudit(Math.min(limit ?? 200, 1000), agentId);
     },
 
+    async clearActivity({ agentId }) {
+      if (agentId) assertCompanyId(agentId);
+      await store.updateRuns((runs) =>
+        runs.filter(
+          (r) => !((r.status === "done" || r.status === "failed") && (!agentId || r.agentId === agentId)),
+        ),
+      );
+      await store.clearAudit(agentId);
+    },
+
     async runRoutineNow({ agentId, routineId }) {
       await ready;
       const agent = await requireAgent(agentId);
@@ -180,8 +194,23 @@ export function createCompanyService(options: CreateCompanyServiceOptions): ICom
       await runner.start({ agentId, channel: routine.channel, task: routine.task, trigger: "routine", depth: 0 });
     },
 
+    async listFiles({ agentId, path }) {
+      await requireAgent(agentId);
+      return listAgentFiles(store.workspaceOf(agentId), path);
+    },
+
+    async previewFile({ agentId, path }) {
+      await requireAgent(agentId);
+      return previewAgentFile(store.workspaceOf(agentId), path);
+    },
+
+    async deleteFile({ agentId, path }) {
+      await requireAgent(agentId);
+      await deleteAgentFile(store.workspaceOf(agentId), path);
+    },
+
     async listIcons() {
-      return store.listIcons();
+      return icons.list();
     },
 
     async addIcon({ name, svg }) {
@@ -191,13 +220,20 @@ export function createCompanyService(options: CreateCompanyServiceOptions): ICom
         throw new Error("That file isn't an SVG.");
       }
       const label = String(name ?? "").trim().slice(0, 40) || "Icon";
-      return store.addIcon(label, markup);
+      return icons.addSvg(label, markup);
+    },
+
+    async addMediaIcon({ name, mime, base64 }) {
+      const data = Buffer.from(String(base64 ?? ""), "base64");
+      if (data.length > MAX_MEDIA_ICON_BYTES) throw new Error("Animated icons can be at most 4 MB.");
+      const label = String(name ?? "").trim().slice(0, 40) || "Icon";
+      return icons.addMedia(label, String(mime ?? ""), data);
     },
 
     async deleteIcon({ id }) {
       const users = (await store.listAgents()).filter((a) => a.icon === id).map((a) => a.name);
       if (users.length) throw new Error(`Still used by ${users.join(", ")}. Give them another icon first.`);
-      await store.removeIcon(id);
+      await icons.remove(id);
     },
   };
 }

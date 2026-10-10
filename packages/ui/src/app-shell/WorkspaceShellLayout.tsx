@@ -1811,6 +1811,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             className="min-h-0 flex-1"
                           >
                             <CompanyPage
+                              isDesktop={Boolean(isDesktop)}
                               onOpenTask={(path, taskId) => handleSelectTaskInChat(path, taskId)}
                             />
                           </ScopedErrorBoundary>

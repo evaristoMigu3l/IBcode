@@ -189,15 +189,8 @@ export class CompanyRunner {
   private async overDailyLimit(agent: CompanyAgent, params: CompanyStartParams): Promise<CompanyRun | undefined> {
     if (params.trigger === "message") return undefined;
     const limit = agent.dailyRunLimit ?? COMPANY_DEFAULT_DAILY_RUN_LIMIT;
-    const dayStart = new Date();
-    dayStart.setHours(0, 0, 0, 0);
-    const today = (await this.deps.store.readRuns()).filter(
-      (r) => r.agentId === agent.id && r.trigger !== "message" && r.startedAt >= dayStart.getTime(),
-    );
-    // ponytail: runs.json 只保留最近 200 条，单日全公司超过 200 次自主运行时计数会偏少。
-    const used = today.filter((r) => !r.error?.startsWith(DAILY_LIMIT_PREFIX)).length;
-    if (used < limit) return undefined;
-    const alreadyNotified = today.some((r) => r.error?.startsWith(DAILY_LIMIT_PREFIX));
+    const { ok, notify } = await this.deps.store.claimDailyRun(agent.id, limit);
+    if (ok) return undefined;
     const error = `${DAILY_LIMIT_PREFIX}: ${agent.name} can be started by routines and coworkers ${limit} times a day.`;
     const run: CompanyRun = {
       id: randomUUID(),
@@ -213,7 +206,7 @@ export class CompanyRunner {
       error,
     };
     await this.deps.store.updateRuns((runs) => [run, ...runs]);
-    if (!alreadyNotified) {
+    if (notify) {
       await this.deps.store.appendMessage({
         id: randomUUID(),
         ts: Date.now(),

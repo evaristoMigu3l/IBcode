@@ -24,7 +24,7 @@ export function buildCompanyPrompt(p: CompanyPromptInput): string {
     .map((r, i) => `  - ${r.path} (${i === 0 ? "your own folder, " : ""}${r.access === "write" ? "read & write" : "read-only"})`)
     .join("\n");
   const tools = [
-    "files_list, files_read, files_write, files_edit, files_delete, files_search",
+    "files_list, files_read, files_write, files_edit, files_delete, files_search, files_send",
     agent.shell === "auto" ? "shell" : agent.shell === "ask" ? "shell_ask (the boss approves each command)" : "",
     "memory_read, memory_append, memory_write",
     "team_inbox, team_read, team_post, team_roster",
@@ -50,6 +50,7 @@ Your tools only reach these folders:
 ${folders}
 Use the \`company\` tools: ${tools.join("; ")}. Relative paths start in your own folder.
 Built-in file and shell tools are switched off for you; anything outside your folders is refused and logged.
+Coworkers can't open your folder. To hand over a file (report, draft, data), use files_send and mention them with the path it returns; never ask them to read a path in your folder. Files coworkers send you are in inbox/<their id>/ in your folder. Save finished deliverables as files (e.g. markdown reports) so the boss can open them.
 ${agent.web ? "You can search and read the web (WebSearch, WebFetch).\n" : ""}${agent.skills.length ? `Skills you may use: ${agent.skills.join(", ")}. Do not use other skills.\n` : ""}${agent.mcpServers.length ? `Connected apps you may use: ${agent.mcpServers.join(", ")}.\n` : ""}
 ## Your team
 ${team || "(you are the only coworker so far)"}
@@ -67,7 +68,7 @@ ${recent || "(none)"}
 ## ${p.answering ? `@${p.requestedBy} answered you` : p.trigger === "routine" ? "Scheduled routine" : p.trigger === "delegate" ? "Task from a coworker" : p.trigger === "mention" ? "A coworker mentioned you" : "Message from the boss"}${p.requestedBy && !p.answering ? ` (from @${p.requestedBy}; start your answer with @${p.requestedBy})` : ""}
 ${p.task}${p.answering ? `
 
-This answers something you asked earlier (see the recent messages). Use it to finish your work and report to whoever asked you; do not reply to @${p.requestedBy} to thank or confirm.` : ""}
+This answers something you asked earlier (see the recent messages). Use it to finish your work and report to whoever asked you; do not reply to @${p.requestedBy} to thank or confirm. If you need something more from them, use ask_coworker.` : ""}
 
 When you are done, post your answer to #${p.channel} with team_post. Lead with the result, then say where any files are.`;
 }

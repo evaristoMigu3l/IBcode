@@ -45,9 +45,13 @@ export function CompanyChannels({ state, onRefresh, onOpenRun }: Props) {
     const text = draft.trim();
     if (!text || sending) return;
     setSending(true);
+    // 立即清空输入框：唤醒同事要等任务创建完成（几秒），期间留着原文容易被重复发送。
+    setDraft("");
     try {
-      const { woke } = await companyService.post({ channel, text });
-      setDraft("");
+      const pending = companyService.post({ channel, text });
+      // 消息在唤醒同事之前就已写入频道：先拉一次，让它马上出现。
+      setTimeout(() => void poll(), 300);
+      const { woke } = await pending;
       if (woke.length) {
         const names = woke.map((id) => agentsById.get(id)?.name ?? id).join(", ");
         toast(intl.formatMessage({ id: "company.composer.woke" }, { names }));
@@ -55,6 +59,8 @@ export function CompanyChannels({ state, onRefresh, onOpenRun }: Props) {
       await poll();
       onRefresh();
     } catch (e) {
+      // 发送失败时把原文还回去（除非用户已经开始写下一条）。
+      setDraft((current) => current || text);
       toast(e instanceof Error ? e.message : String(e));
     } finally {
       setSending(false);
@@ -233,7 +239,7 @@ function MessageRow({
   return (
     <div className="flex gap-3">
       {agent ? (
-        <CompanyAvatar icon={agent.icon} color={agent.color} size={32} active={Boolean(activeRunFor(runs, agent.id))} />
+        <CompanyAvatar icon={agent.icon} color={agent.color} size={32} still active={Boolean(activeRunFor(runs, agent.id))} />
       ) : (
         <span
           className={cn(

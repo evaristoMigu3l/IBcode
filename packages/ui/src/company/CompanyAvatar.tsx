@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
-import type { CompanyAgentIcon, CompanyCustomIcon, CompanyIconId } from "@zcode/shared";
+import type { CompanyAgentIcon, CompanyIconId } from "@zcode/shared";
+import type { CompanyIconWithSrc } from "@/hooks/useCompany.js";
 import { cn } from "@/components/lib/utils.js";
 import { sanitizeCompanySvg } from "./companySvg.js";
 
@@ -139,12 +140,12 @@ const ICONS: Record<CompanyIconId, ReactNode> = {
 
 /** 图标库列表与刷新（编辑器上传/删除后调用 reload）。由 CompanyPage 提供。 */
 export const CompanyIconLibraryContext = createContext<{
-  icons: CompanyCustomIcon[];
+  icons: CompanyIconWithSrc[];
   reload(): Promise<void>;
 }>({ icons: [], reload: async () => undefined });
 
-/** 图标库：custom:<id> -> 已清洗的 SVG 文本。由 CompanyPage 提供。 */
-export const CompanyIconsContext = createContext<ReadonlyMap<string, string>>(new Map());
+/** 图标库：custom:<id> -> 图标（SVG 文本，或动图的 blob URL）。由 CompanyPage 提供。 */
+export const CompanyIconsContext = createContext<ReadonlyMap<string, CompanyIconWithSrc>>(new Map());
 
 const SHADOW_STYLE =
   ":host{display:block;width:100%;height:100%}svg{display:block;width:100%;height:100%;overflow:visible}" +
@@ -172,16 +173,38 @@ function CustomSvgIcon({ markup }: { markup: string }) {
   return <span ref={host} className="cmp-custom" />;
 }
 
+/** 视频/动图图标：静音循环播放；still 时只显示首帧（消息列表里用，避免几十个视频同时解码）。 */
+function MediaIcon({ icon, still }: { icon: CompanyIconWithSrc; still: boolean }) {
+  const reducedMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (icon.kind === "video") {
+    return (
+      <video
+        className="cmp-media"
+        src={icon.src}
+        autoPlay={!still && !reducedMotion}
+        loop
+        muted
+        playsInline
+        preload="auto"
+        disablePictureInPicture
+      />
+    );
+  }
+  return <img className="cmp-media" src={icon.src} alt="" draggable={false} />;
+}
+
 export interface CompanyAvatarProps {
   icon: CompanyAgentIcon;
   color: string;
   size?: number;
   active?: boolean;
+  /** 只显示视频图标的首帧（长列表里用）。 */
+  still?: boolean;
   className?: string;
   label?: string;
 }
 
-export function CompanyAvatar({ icon, color, size = 32, active = false, className, label }: CompanyAvatarProps) {
+export function CompanyAvatar({ icon, color, size = 32, active = false, still = false, className, label }: CompanyAvatarProps) {
   const icons = useContext(CompanyIconsContext);
   const custom = icon.startsWith("custom:") ? icons.get(icon) : undefined;
   return (
@@ -193,8 +216,10 @@ export function CompanyAvatar({ icon, color, size = 32, active = false, classNam
       aria-hidden={label ? undefined : true}
       style={{ "--cmp-color": color, width: size, height: size } as CSSProperties}
     >
-      {custom ? (
-        <CustomSvgIcon markup={custom} />
+      {custom?.kind === "svg" && custom.svg ? (
+        <CustomSvgIcon markup={custom.svg} />
+      ) : custom?.src ? (
+        <MediaIcon icon={custom} still={still} />
       ) : (
         <svg viewBox="0 0 40 40" focusable="false">
           {ICONS[icon as CompanyIconId] ?? ICONS.orbit}

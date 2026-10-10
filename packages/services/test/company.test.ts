@@ -122,6 +122,26 @@ test("end to end: a boss message wakes a coworker whose gateway is scoped to its
 
   assert.equal((await call("files_write", { path: "notes/a.txt", content: "hello" })).isError, undefined);
   assert.equal(await readFile(join(sandbox, "company", "workspaces", "engineer", "notes", "a.txt"), "utf8"), "hello");
+
+  // 同事之间交接文件：落到收件人的 inbox/<发送者>/，重名自动加序号
+  const sent = await call("files_send", { path: "notes/a.txt", to: "researcher" });
+  assert.match(sent.content[0].text, /inbox\/engineer\/a\.txt/);
+  const researcherFolder = join(sandbox, "company", "workspaces", "researcher");
+  assert.equal(await readFile(join(researcherFolder, "inbox", "engineer", "a.txt"), "utf8"), "hello");
+  assert.match((await call("files_send", { path: "notes/a.txt", to: "researcher" })).content[0].text, /a \(2\)\.txt/);
+  assert.equal((await call("files_send", { path: "notes/a.txt", to: "nobody" })).isError, true);
+  assert.equal((await call("files_send", { path: join(outside, "secret.txt"), to: "researcher" })).isError, true);
+
+  // 老板的文件浏览：列出、预览、删除，只能在同事自己的文件夹里
+  const listing = await company.listFiles({ agentId: "researcher", path: "inbox/engineer" });
+  assert.deepEqual(listing.map((f) => f.name), ["a (2).txt", "a.txt"]);
+  const preview = await company.previewFile({ agentId: "researcher", path: "inbox/engineer/a.txt" });
+  assert.equal(preview.kind, "text");
+  assert.equal(preview.text, "hello");
+  await assert.rejects(company.previewFile({ agentId: "researcher", path: "../engineer/notes/a.txt" }), /outside/);
+  await assert.rejects(company.deleteFile({ agentId: "researcher", path: "." }), /whole folder/);
+  await company.deleteFile({ agentId: "researcher", path: "inbox/engineer/a (2).txt" });
+  assert.deepEqual((await company.listFiles({ agentId: "researcher", path: "inbox/engineer" })).map((f) => f.name), ["a.txt"]);
   const refused = await call("files_read", { path: join(outside, "secret.txt") });
   assert.equal(refused.isError, true);
   assert.doesNotMatch(refused.content[0].text, /top secret/);
@@ -158,6 +178,13 @@ test("end to end: a boss message wakes a coworker whose gateway is scoped to its
   assert.equal((await runOf()).status, "done");
   pendingApprovals.set("task-1", 1);
   assert.equal((await runOf()).status, "done", "a finished run never goes back to needs-you/running");
+
+  // 清空动态：先只清某位同事，再全部清空；已结束的 run 一并移除
+  await company.clearActivity({ agentId: "researcher" });
+  assert.ok((await company.listAudit({})).some((e) => e.agentId === "engineer"), "other coworkers' log stays");
+  await company.clearActivity({});
+  assert.deepEqual(await company.listAudit({}), []);
+  assert.equal((await company.getState()).runs.filter((r) => r.agentId === "engineer").length, 0);
 
   const config = JSON.parse(await readFile(join(sandbox, ".zcode", "cli", "config.json"), "utf8"));
   assert.ok(config.permission.allowedTools.includes("mcp__company__files_write"));
@@ -227,6 +254,11 @@ test("coworkers wake each other by @mention, within the chain and daily limits; 
   assert.match(await call(0, "team_post", { channel: "general", text: "@engineer third" }), /Daily limit reached/);
   const notices = (await company.listMessages({ channel: "general" })).filter((m) => m.from === "system");
   assert.equal(notices.length, 1, "the limit notice is posted once a day");
+  // 清空动态不会重置每日上限，也不会再提示一次
+  await company.clearActivity({});
+  assert.match(await post(0, "@engineer after clearing"), /Daily limit reached/);
+  const noticesAfter = (await company.listMessages({ channel: "general" })).filter((m) => m.from === "system");
+  assert.equal(noticesAfter.length, 1);
   // 老板消息不受上限影响
   assert.deepEqual((await company.post({ channel: "general", text: "@engineer boss asks" })).woke, ["engineer"]);
   assert.equal(agentOf(created.length - 1), "engineer");
@@ -241,5 +273,17 @@ test("coworkers wake each other by @mention, within the chain and daily limits; 
   await assert.rejects(company.saveAgent({ ...engineer, icon: "custom:0000000000000000" }), /no longer in your icon library/);
   await company.saveAgent({ ...engineer, icon: "gear" });
   await company.deleteIcon({ id: icon.id });
+  assert.equal((await company.listIcons()).length, 0);
+
+  // 动图图标（MP4 等）：按文件头校验真实格式
+  const fakeMp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.alloc(16)]);
+  const video = await company.addMediaIcon({ name: "search", mime: "video/mp4", base64: fakeMp4.toString("base64") });
+  assert.equal(video.kind, "video");
+  const listed = (await company.listIcons()).find((i) => i.id === video.id)!;
+  assert.match(listed.dataUrl!, /^data:video\/mp4;base64,/);
+  const disguised = Buffer.from("<html><script>alert(1)</script></html>").toString("base64");
+  await assert.rejects(company.addMediaIcon({ name: "x", mime: "video/mp4", base64: disguised }), /valid MP4/);
+  await assert.rejects(company.addMediaIcon({ name: "x", mime: "text/html", base64: fakeMp4.toString("base64") }), /MP4, WebM/);
+  await company.deleteIcon({ id: video.id });
   assert.equal((await company.listIcons()).length, 0);
 });

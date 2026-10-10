@@ -24,11 +24,15 @@ export type CompanyAgentIcon = CompanyIconId | `custom:${string}`;
 
 export const COMPANY_CUSTOM_ICON_RE = /^custom:[a-f0-9]{16}$/;
 
-/** 用户上传的 SVG 图标（存的是已清洗过的 SVG；渲染时还会再清洗一次）。 */
+/**
+ * 用户上传到图标库的图标：SVG（已清洗，渲染时再清洗一次），或 MP4/WebM/GIF/WebP/PNG 动图（data URL）。
+ */
 export interface CompanyCustomIcon {
   id: string;
   name: string;
-  svg: string;
+  kind: "svg" | "video" | "image";
+  svg?: string;
+  dataUrl?: string;
 }
 
 /** 来自例行任务和同事（非老板消息）的每日自主运行上限默认值。 */
@@ -136,6 +140,26 @@ export interface CompanyState {
   agents: CompanyAgent[];
   channels: string[];
   runs: CompanyRun[];
+}
+
+/** 同事文件夹里的一项（路径相对于同事自己的文件夹，用 / 分隔）。 */
+export interface CompanyFileEntry {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  size: number;
+  modifiedAt: number;
+}
+
+/** 文件预览：文本直接给内容，图片给 data URL，其他类型只给绝对路径（用系统默认程序打开）。 */
+export interface CompanyFilePreview {
+  path: string;
+  absolutePath: string;
+  size: number;
+  kind: "text" | "image" | "other";
+  text?: string;
+  truncated?: boolean;
+  dataUrl?: string;
 }
 
 export interface CompanyCapabilities {

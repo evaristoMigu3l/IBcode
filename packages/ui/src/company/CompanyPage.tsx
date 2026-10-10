@@ -7,22 +7,25 @@ import { CompanyActivity } from "./CompanyActivity.js";
 import { CompanyAgentEditor } from "./CompanyAgentEditor.js";
 import { CompanyAvatar, CompanyIconLibraryContext, CompanyIconsContext } from "./CompanyAvatar.js";
 import { CompanyChannels, activeRunFor } from "./CompanyChannels.js";
+import { CompanyFiles } from "./CompanyFiles.js";
 import { CompanyTeam } from "./CompanyTeam.js";
 
-type Tab = "channels" | "team" | "activity";
+type Tab = "channels" | "team" | "files" | "activity";
 
 export interface CompanyPageProps {
   /** 打开某次运行对应的 ZCode task（同事的工作过程、等你批准的动作都在那里）。 */
   onOpenTask(workspacePath: string, taskId: string): void;
+  /** 桌面端才能用系统程序打开文件；浏览器版改为下载。 */
+  isDesktop: boolean;
 }
 
 /** Company 主视图：频道 / 团队 / 动态。OpenBot 式 AI 同事，每位都有自己的文件夹与工具授权。 */
-export function CompanyPage({ onOpenTask }: CompanyPageProps) {
+export function CompanyPage({ onOpenTask, isDesktop }: CompanyPageProps) {
   const { intl } = useZCodeIntl();
   const t = (id: string) => intl.formatMessage({ id });
   const { state, error, refresh } = useCompanyState();
   const library = useCompanyIcons();
-  const iconMap = useMemo(() => new Map(library.icons.map((i) => [i.id, i.svg])), [library.icons]);
+  const iconMap = useMemo(() => new Map(library.icons.map((i) => [i.id, i])), [library.icons]);
   const [tab, setTab] = useState<Tab>("channels");
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const openRun = (run: CompanyRun) => {
@@ -64,6 +67,7 @@ export function CompanyPage({ onOpenTask }: CompanyPageProps) {
           <TabsList>
             <TabsTrigger value="channels">{t("company.tab.channels")}</TabsTrigger>
             <TabsTrigger value="team">{t("company.tab.team")}</TabsTrigger>
+            <TabsTrigger value="files">{t("company.tab.files")}</TabsTrigger>
             <TabsTrigger value="activity">{t("company.tab.activity")}</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -83,6 +87,8 @@ export function CompanyPage({ onOpenTask }: CompanyPageProps) {
         </div>
       ) : tab === "channels" ? (
         <CompanyChannels state={state} onRefresh={() => void refresh()} onOpenRun={openRun} />
+      ) : tab === "files" ? (
+        <CompanyFiles state={state} isDesktop={isDesktop} />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           <div className="mx-auto w-full max-w-5xl">
@@ -95,7 +101,7 @@ export function CompanyPage({ onOpenTask }: CompanyPageProps) {
                 }}
               />
             ) : (
-              <CompanyActivity state={state} onOpenRun={openRun} />
+              <CompanyActivity state={state} onOpenRun={openRun} onRefresh={() => void refresh()} />
             )}
           </div>
         </div>

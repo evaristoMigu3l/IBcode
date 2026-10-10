@@ -2151,3 +2151,11 @@ body {
   width: 84%;
   height: 84%;
 }
+/* 视频/动图图标：原样显示（与视频本身一致），铺满头像并跟随圆角。 */
+.cmp-avatar .cmp-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
