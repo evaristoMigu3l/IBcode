@@ -1,0 +1,7 @@
+# Graphify ignore patterns for static assets and icons
+**/material-icons/**
+**/packages/ui/src/assets/**
+*.mp3
+*.svg
+*.png
+*.webp
